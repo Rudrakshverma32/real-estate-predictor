@@ -122,7 +122,11 @@ def user_input_features():
         float(df['Longitude'].min()), float(df['Longitude'].max()), float(df['Longitude'].median()), 0.1
     )
     
-    return pd.DataFrame(inputs, index=[0])
+    # FIX: Ensure the input dataframe columns are in the exact same order as the training data
+    input_df = pd.DataFrame(inputs, index=[0])
+    input_df = input_df[feature_names] 
+    
+    return input_df
 
 input_df = user_input_features()
 
