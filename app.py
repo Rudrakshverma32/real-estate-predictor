@@ -163,30 +163,45 @@ with tab1:
     col_map, col_details = st.columns([2, 1])
     
     with col_map:
-        st.subheader("📍 Property Location & Terrain")
-        # Visualizing the selected coordinates on an interactive geographic map
-        map_data = pd.DataFrame({
-            'lat': [input_df['Latitude'][0]], 
-            'lon': [input_df['Longitude'][0]],
-            'Property': ['Target Real Estate'],
-            'Marker Size': [10] # Used to make the dot visible
-        })
+        st.subheader("📍 Property Location & Market Map")
+        st.markdown("*Hover over the blue market points to see local area valuations.*")
         
-        # Upgraded from basic st.map to Plotly Express for beautiful terrain rendering
+        # 1. Background Market Data (to show area values on hover)
+        # We take a sample of 2,500 points from our dataset to keep the browser running fast
+        market_sample = df.sample(n=2500, random_state=42).copy()
+        market_sample['Area Market Value'] = market_sample['Price'].apply(lambda x: f"${x:,.0f}")
+        
+        # Create the base map with historical area prices
         fig_map = px.scatter_mapbox(
-            map_data, 
-            lat="lat", 
-            lon="lon", 
-            hover_name="Property",
-            size="Marker Size",
-            color_discrete_sequence=["#FF3B30"], # Bright red pin
-            zoom=7, 
-            height=400,
-            mapbox_style="open-street-map" # Shows water (blue), grass/parks (green), and terrain
+            market_sample, 
+            lat="Latitude", 
+            lon="Longitude", 
+            color="Price",
+            color_continuous_scale="Blues", # Darker blue = higher price
+            hover_name="Area Market Value",
+            hover_data={"Latitude": False, "Longitude": False, "Price": False},
+            zoom=5.5, 
+            height=450,
+            mapbox_style="open-street-map" # Keeps the water/mountains/grass
         )
         
-        # Remove map margins so it fills the container perfectly
-        fig_map.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+        # 2. Add the User's Target Property as a giant red pin on top
+        fig_map.add_scattermapbox(
+            lat=[input_df['Latitude'][0]],
+            lon=[input_df['Longitude'][0]],
+            mode='markers',
+            marker=dict(size=16, color='#FF3B30'), # Bright red pin
+            hovertext=['🎯 Target Property Location'],
+            hoverinfo='text',
+            name='Target Property'
+        )
+        
+        # Remove map margins and hide the colorbar to keep it looking clean
+        fig_map.update_layout(
+            margin={"r":0,"t":0,"l":0,"b":0},
+            coloraxis_showscale=False, 
+            showlegend=False
+        )
         st.plotly_chart(fig_map, use_container_width=True)
         
     with col_details:
