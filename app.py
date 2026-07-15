@@ -163,10 +163,31 @@ with tab1:
     col_map, col_details = st.columns([2, 1])
     
     with col_map:
-        st.subheader("📍 Property Location")
-        # Visualizing the selected coordinates on an interactive map
-        map_data = pd.DataFrame({'lat': [input_df['Latitude'][0]], 'lon': [input_df['Longitude'][0]]})
-        st.map(map_data, zoom=6)
+        st.subheader("📍 Property Location & Terrain")
+        # Visualizing the selected coordinates on an interactive geographic map
+        map_data = pd.DataFrame({
+            'lat': [input_df['Latitude'][0]], 
+            'lon': [input_df['Longitude'][0]],
+            'Property': ['Target Real Estate'],
+            'Marker Size': [10] # Used to make the dot visible
+        })
+        
+        # Upgraded from basic st.map to Plotly Express for beautiful terrain rendering
+        fig_map = px.scatter_mapbox(
+            map_data, 
+            lat="lat", 
+            lon="lon", 
+            hover_name="Property",
+            size="Marker Size",
+            color_discrete_sequence=["#FF3B30"], # Bright red pin
+            zoom=7, 
+            height=400,
+            mapbox_style="open-street-map" # Shows water (blue), grass/parks (green), and terrain
+        )
+        
+        # Remove map margins so it fills the container perfectly
+        fig_map.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+        st.plotly_chart(fig_map, use_container_width=True)
         
     with col_details:
         st.subheader("📋 Selected Features")
