@@ -5,29 +5,69 @@ from sklearn.datasets import fetch_california_housing
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 # ==========================================
-# 1. Page Configuration & Layout
+# 1. Page Configuration & Custom CSS
 # ==========================================
 st.set_page_config(
-    page_title="Real Estate Analytics Dashboard",
+    page_title="Premium Real Estate Analytics",
     page_icon="🏡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS to inject to make the dashboard look cleaner
+# Custom CSS for a beautiful, modern UI
 st.markdown("""
 <style>
-    .reportview-container .main .block-container{
-        padding-top: 2rem;
+    /* Main Background & Font */
+    .stApp {
+        background-color: #F8FAFC;
     }
-    .metric-box {
-        background-color: #f0f2f6;
-        padding: 15px;
+    
+    /* Gradient Prediction Card */
+    .prediction-card {
+        background: linear-gradient(135deg, #0F2027 0%, #203A43 50%, #2C5364 100%);
+        padding: 2.5rem;
+        border-radius: 20px;
+        color: white;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        margin-bottom: 2rem;
+    }
+    .prediction-card h3 {
+        color: #E2E8F0;
+        font-weight: 400;
+        margin-bottom: 0.5rem;
+    }
+    .prediction-value {
+        font-size: 4.5rem !important;
+        font-weight: 800;
+        color: #4ADE80; /* Nice bright green */
+        margin: 0;
+        line-height: 1.2;
+    }
+    
+    /* Subtle Metric Cards */
+    .metric-card {
+        background-color: white;
+        border-left: 5px solid #3B82F6;
+        padding: 1.5rem;
         border-radius: 10px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    
+    /* Headers */
+    .main-title {
+        font-size: 3rem;
+        color: #1E293B;
+        font-weight: 800;
+        margin-bottom: 0;
+    }
+    .sub-title {
+        color: #64748B;
+        font-size: 1.2rem;
+        margin-bottom: 2rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -35,164 +75,133 @@ st.markdown("""
 # ==========================================
 # 2. Data Loading & Caching
 # ==========================================
-# We use @st.cache_data so the data is only downloaded/processed once per session
 @st.cache_data
 def load_data():
     cal_housing = fetch_california_housing()
     df = pd.DataFrame(cal_housing.data, columns=cal_housing.feature_names)
-    # The target is the median house value in units of 100,000
     df['Price'] = cal_housing.target * 100000 
     return df, cal_housing.feature_names
 
 # ==========================================
 # 3. Model Training & Caching
 # ==========================================
-# We use @st.cache_resource for ML models so it only trains once and persists in memory
 @st.cache_resource
 def train_model(df, features):
     X = df[features]
     y = df['Price']
     
-    # Split data for evaluation
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    # Train a Random Forest model
-    # Using 50 estimators for quick compilation in a web app context while maintaining accuracy
-    model = RandomForestRegressor(n_estimators=50, max_depth=15, random_state=42)
+    model = RandomForestRegressor(n_estimators=100, max_depth=15, random_state=42)
     model.fit(X_train, y_train)
     
-    # Calculate performance metrics
     predictions = model.predict(X_test)
     mae = mean_absolute_error(y_test, predictions)
     r2 = r2_score(y_test, predictions)
     
     return model, mae, r2
 
-# Load data and train model
-with st.spinner('Loading data and training machine learning model...'):
+with st.spinner('Initializing Real Estate Engine...'):
     df, feature_names = load_data()
     model, mae, r2 = train_model(df, feature_names)
 
 # ==========================================
-# 4. User Interface - Sidebar (Inputs)
+# 4. Sidebar / User Inputs
 # ==========================================
-st.sidebar.header("🔧 Property Specifications")
-st.sidebar.markdown("Adjust the sliders below to see how property features impact the predicted value.")
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2111/2111320.png", width=60)
+    st.title("Property Specs")
+    st.markdown("Fine-tune the parameters below to instantly generate a new property valuation.")
+    st.divider()
 
-# Create dynamic sliders based on dataset min/max values
 def user_input_features():
     inputs = {}
     
-    # Grouping inputs logically for the user
-    st.sidebar.subheader("Area Demographics")
-    inputs['MedInc'] = st.sidebar.slider(
-        'Median Income (x$10,000)', 
-        float(df['MedInc'].min()), float(df['MedInc'].max()), float(df['MedInc'].median()), 0.5
-    )
-    inputs['Population'] = st.sidebar.slider(
-        'Population in Block', 
-        float(df['Population'].min()), float(df['Population'].quantile(0.95)), float(df['Population'].median()), 100.0
-    )
+    st.sidebar.subheader("📍 Location")
+    # Using San Francisco area defaults for better map initial view
+    inputs['Latitude'] = st.sidebar.slider('Latitude', float(df['Latitude'].min()), float(df['Latitude'].max()), 37.77, 0.05)
+    inputs['Longitude'] = st.sidebar.slider('Longitude', float(df['Longitude'].min()), float(df['Longitude'].max()), -122.41, 0.05)
     
-    st.sidebar.subheader("House Characteristics")
-    inputs['HouseAge'] = st.sidebar.slider(
-        'House Age (Years)', 
-        float(df['HouseAge'].min()), float(df['HouseAge'].max()), float(df['HouseAge'].median()), 1.0
-    )
-    inputs['AveRooms'] = st.sidebar.slider(
-        'Average Rooms', 
-        float(df['AveRooms'].min()), 15.0, float(df['AveRooms'].median()), 0.5
-    )
-    inputs['AveBedrms'] = st.sidebar.slider(
-        'Average Bedrooms', 
-        float(df['AveBedrms'].min()), 5.0, float(df['AveBedrms'].median()), 0.1
-    )
-    inputs['AveOccup'] = st.sidebar.slider(
-        'Average Occupants', 
-        float(df['AveOccup'].min()), 10.0, float(df['AveOccup'].median()), 0.5
-    )
+    st.sidebar.subheader("👥 Demographics")
+    inputs['MedInc'] = st.sidebar.slider('Median Income (x$10k)', float(df['MedInc'].min()), float(df['MedInc'].max()), float(df['MedInc'].median()), 0.5)
+    inputs['Population'] = st.sidebar.slider('Local Population', float(df['Population'].min()), float(df['Population'].quantile(0.95)), float(df['Population'].median()), 100.0)
     
-    st.sidebar.subheader("Location Coordinates")
-    inputs['Latitude'] = st.sidebar.slider(
-        'Latitude', 
-        float(df['Latitude'].min()), float(df['Latitude'].max()), float(df['Latitude'].median()), 0.1
-    )
-    inputs['Longitude'] = st.sidebar.slider(
-        'Longitude', 
-        float(df['Longitude'].min()), float(df['Longitude'].max()), float(df['Longitude'].median()), 0.1
-    )
+    st.sidebar.subheader("🏠 Property Details")
+    inputs['HouseAge'] = st.sidebar.slider('House Age (Years)', float(df['HouseAge'].min()), float(df['HouseAge'].max()), float(df['HouseAge'].median()), 1.0)
+    inputs['AveRooms'] = st.sidebar.slider('Average Rooms', float(df['AveRooms'].min()), 15.0, float(df['AveRooms'].median()), 0.5)
+    inputs['AveBedrms'] = st.sidebar.slider('Average Bedrooms', float(df['AveBedrms'].min()), 5.0, float(df['AveBedrms'].median()), 0.1)
+    inputs['AveOccup'] = st.sidebar.slider('Average Occupants', float(df['AveOccup'].min()), 10.0, float(df['AveOccup'].median()), 0.5)
     
-    # FIX: Ensure the input dataframe columns are in the exact same order as the training data
     input_df = pd.DataFrame(inputs, index=[0])
-    input_df = input_df[feature_names] 
-    
+    input_df = input_df[feature_names] # Prevents ValueError
     return input_df
 
 input_df = user_input_features()
 
 # ==========================================
-# 5. User Interface - Main Canvas
+# 5. Main UI Layout
 # ==========================================
-st.title("🏡 Predictive Real Estate Analytics")
-st.markdown("""
-This end-to-end machine learning application predicts real estate valuations based on demographic and structural features. 
-Adjust the parameters in the sidebar to generate a **real-time prediction**.
-""")
+st.markdown('<p class="main-title">AI Real Estate Valuator</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-title">Powered by Scikit-Learn Machine Learning</p>', unsafe_allow_html=True)
 
-st.divider()
+# Generate Prediction
+prediction = model.predict(input_df)[0]
 
-# --- Prediction Section ---
-st.subheader("💡 Real-Time Valuation Prediction")
+# Beautiful Custom Prediction Card
+st.markdown(f"""
+<div class="prediction-card">
+    <h3>Estimated Market Value</h3>
+    <p class="prediction-value">${prediction:,.0f}</p>
+    <p style="color: #94A3B8; margin-top: 10px;">Based on current dynamic parameters</p>
+</div>
+""", unsafe_allow_html=True)
 
-# Make prediction based on user input
-prediction = model.predict(input_df)
+# Use Tabs to organize information cleanly
+tab1, tab2 = st.tabs(["📊 Property Dashboard", "⚙️ Model Analytics"])
 
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.markdown("### Estimated Value")
-    # Displaying the prediction as a massive, visually appealing metric
-    st.metric(label="Predicted House Price", value=f"${prediction[0]:,.2f}")
-
-with col2:
-    st.markdown("**Current Input Parameters:**")
-    st.dataframe(input_df, hide_index=True)
-
-st.divider()
-
-# --- Analytics & Model Insight Section ---
-st.subheader("📊 Model Performance & Insights")
-st.markdown("Understanding how the `RandomForestRegressor` makes decisions.")
-
-col3, col4 = st.columns(2)
-
-with col3:
-    # Feature Importance Plot
-    st.markdown("**Top Drivers of Property Value**")
-    importances = model.feature_importances_
-    indices = np.argsort(importances)[::-1]
+with tab1:
+    col_map, col_details = st.columns([2, 1])
     
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(range(len(importances)), importances[indices], align="center", color="#4CAF50")
-    ax.set_xticks(range(len(importances)))
-    ax.set_xticklabels(np.array(feature_names)[indices], rotation=45, ha='right')
-    ax.set_ylabel("Relative Importance")
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    st.pyplot(fig)
+    with col_map:
+        st.subheader("📍 Property Location")
+        # Visualizing the selected coordinates on an interactive map
+        map_data = pd.DataFrame({'lat': [input_df['Latitude'][0]], 'lon': [input_df['Longitude'][0]]})
+        st.map(map_data, zoom=6)
+        
+    with col_details:
+        st.subheader("📋 Selected Features")
+        st.dataframe(input_df.T.rename(columns={0: 'Value'}), use_container_width=True)
 
-with col4:
-    # Model Metrics
-    st.markdown("**Test Set Accuracy Metrics**")
-    st.info(f"**Mean Absolute Error (MAE):** ${mae:,.2f}")
-    st.markdown("*This means our model's predictions are, on average, off by this amount.*")
+with tab2:
+    st.subheader("🧠 How the AI makes decisions")
     
-    st.success(f"**R² Score:** {r2:.3f}")
-    st.markdown(f"*This means the model explains **{r2*100:.1f}%** of the variance in housing prices, indicating a strong predictive fit.*")
-
-    st.markdown("""
-    **Tech Stack Used:**
-    * **Frontend:** Streamlit
-    * **Machine Learning:** Scikit-Learn (Random Forest)
-    * **Data Processing:** Pandas & NumPy
-    """)
+    col_chart, col_metrics = st.columns([2, 1])
+    
+    with col_chart:
+        # Interactive Plotly Chart for Feature Importance
+        importances = model.feature_importances_
+        importance_df = pd.DataFrame({'Feature': feature_names, 'Importance': importances})
+        importance_df = importance_df.sort_values(by='Importance', ascending=True)
+        
+        fig = px.bar(
+            importance_df, 
+            x='Importance', 
+            y='Feature', 
+            orientation='h',
+            title="Feature Impact on Price",
+            color='Importance',
+            color_continuous_scale='Blues'
+        )
+        fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig, use_container_width=True)
+        
+    with col_metrics:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        st.metric(label="Mean Absolute Error", value=f"${mae:,.0f}")
+        st.markdown("*Average deviation of predictions.*")
+        st.markdown("</div><br>", unsafe_allow_html=True)
+        
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        st.metric(label="R² Score (Accuracy)", value=f"{r2:.1%}")
+        st.markdown("*Percentage of variance explained.*")
+        st.markdown("</div>", unsafe_allow_html=True)
